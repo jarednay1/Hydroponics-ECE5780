@@ -1,0 +1,25 @@
+--cpu Cortex-M0
+"hydro_mcu\startup_stm32f072xb.o"
+"hydro_mcu\main.o"
+"hydro_mcu\stm32f0xx_it.o"
+"hydro_mcu\stm32f0xx_hal_msp.o"
+"hydro_mcu\stm32f0xx_hal_tim.o"
+"hydro_mcu\stm32f0xx_hal_tim_ex.o"
+"hydro_mcu\stm32f0xx_hal_rcc.o"
+"hydro_mcu\stm32f0xx_hal_rcc_ex.o"
+"hydro_mcu\stm32f0xx_hal.o"
+"hydro_mcu\stm32f0xx_hal_i2c.o"
+"hydro_mcu\stm32f0xx_hal_i2c_ex.o"
+"hydro_mcu\stm32f0xx_hal_gpio.o"
+"hydro_mcu\stm32f0xx_hal_dma.o"
+"hydro_mcu\stm32f0xx_hal_cortex.o"
+"hydro_mcu\stm32f0xx_hal_pwr.o"
+"hydro_mcu\stm32f0xx_hal_pwr_ex.o"
+"hydro_mcu\stm32f0xx_hal_flash.o"
+"hydro_mcu\stm32f0xx_hal_flash_ex.o"
+"hydro_mcu\stm32f0xx_hal_exti.o"
+"hydro_mcu\system_stm32f0xx.o"
+--strict --scatter "hydro_mcu\hydro_mcu.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "hydro_mcu.map" -o hydro_mcu\hydro_mcu.axf
