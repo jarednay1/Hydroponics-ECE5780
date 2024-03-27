@@ -104,6 +104,8 @@ int main(void)
     SystemClock_Config(); //Configure the system clock
   
     
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN; // clock set for GPIOA
+
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN; // done to find the clock
     
     //sets everything to zero in the pins
@@ -119,20 +121,44 @@ int main(void)
     //                PC14
     GPIOC->MODER |= (1<< 28);
    
+
+
+    // Initializing GPIO Pin: PA0
+    // Digital input mode using the MODER register
+    GPIOA->MODER &= ~((1 << 0) | (1 << 1));
     
+    // Low speed using the OSPEEDR register
+    GPIOA->OSPEEDR &= ~(1 << 0);
     
+    // Pull-down resistor using the PUPDR register
+    GPIOA->PUPDR &= ~(1 << 0);
+    GPIOA->PUPDR |= (1 << 1);
+
+
 
     
-   
-   
+    // set debouncer
+   	uint32_t debouncer = 0;
  
     while(1) {
      //DO STUFF HERE.
-        turnOnPump1();
-        HAL_Delay(100);
-        turnOffPump1();
-        HAL_Delay(100);
-            
+      debouncer = (debouncer << 1); // Always shift every loop iteration
+		
+      if ((GPIOA->IDR & 0x01)) { // If input signal is set/high
+        debouncer |= 0x01; // Set lowest bit of bit-vector
+      }
+     
+      // This code triggers only once when transitioning to steady high
+      if (debouncer == 0x7FFFFFFF) {
+        if ((GPIOA->IDR & 0x01) && GPIOC->ODR == (1 << 14)) {
+          turnOffPump1();
+          HAL_Delay(100);
+        }
+        if ((GPIOA->IDR & 0x01) && GPIOC->ODR != (1 << 14)) {
+          turnOnPump1();
+          HAL_Delay(100);
+        }
+  
      }
 
 }
