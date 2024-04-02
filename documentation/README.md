@@ -1,4 +1,4 @@
-here will be the meeting files
+here will be the meeting, and documentation files
 
 <h1> Documentation used items</h1>
 <ol>
