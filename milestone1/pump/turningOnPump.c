@@ -60,6 +60,88 @@ void _Error_Handler(char * file, int line);
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
+/**
+ @function turnOffPump1
+ @brief turns off pump 1 using PB4.
+ */
+void turnOffPump1(){
+    //this is the GPIO pin used.
+    GPIOB->ODR |= (1<<4);
+    //this is to see the code working.
+    GPIOC->ODR |= (1<<6);
+}
+/**
+ @function turnOnPump1
+ @brief turns on pump 1 using PB4.
+ */
+void turnOnPump1(){
+    //this is the GPIO pin used here.
+    GPIOB->ODR &= ~(1<<4);
+    //this is to see the code working.
+    GPIOC->ODR &= ~(1<<6);
+}
+
+/**
+ @function turnOffPump2
+ @brief turns off pump 2 using PB5.
+ */
+void turnOffPump2(){
+    //this is the GPIO pin used.
+    GPIOB->ODR |= (1<<5);
+    //this is to see the code working.
+    GPIOC->ODR |= (1<<7);
+}
+/**
+ @function turnOnPump2
+ @brief turns on pump 2 using PB5.
+ */
+void turnOnPump2(){
+    //this is the GPIO pin used here.
+    GPIOB->ODR &= ~(1<<5);
+    //this is to see the code working.
+    GPIOC->ODR &= ~(1<<7);
+}
+/**
+ @function turnOffPump3
+ @brief turns off pump 3 using PB6.
+ */
+void turnOffPump3(){
+    //this is the GPIO pin used.
+    GPIOB->ODR |= (1<<6);
+    //this is to see the code working.
+    GPIOC->ODR |= (1<<8);
+}
+/**
+ @function turnOnPump3
+ @brief turns on pump 3 using PB6.
+ */
+void turnOnPump3(){
+    //this is the GPIO pin used here.
+    GPIOB->ODR &= ~(1<<6);
+    //this is to see the code working.
+    GPIOC->ODR &= ~(1<<8);
+}
+
+/**
+ @function turnOffPump4
+ @brief turns off pump 4 using PB7.
+ */
+void turnOffPump4(){
+    //this is the GPIO pin used.
+    GPIOB->ODR |= (1<<7);
+    //this is to see the code working.
+    GPIOC->ODR |= (1<<9);
+}
+/**
+ @function turnOnPump4
+ @brief turns on pump 4 using PB7.
+ */
+void turnOnPump4(){
+    //this is the GPIO pin used here.
+    GPIOB->ODR &= ~(1<<7);
+    //this is to see the code working.
+    GPIOC->ODR &= ~(1<<9);
+}
 void SystemClock_Config(void);
 
 /* USER CODE BEGIN PFP */
@@ -70,24 +152,7 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
-
-/*
- Documentation style asked here.
- ask if desired to be used is on the part
- */
-
-void turnOnPump1(){
-    //this is the GPIO pin used.
-    GPIOC->ODR |= (1<<14);
-    //this is to see the code working.
-    GPIOC->ODR |= (1<<9);
-}
-void turnOffPump1(){
-    //this is the GPIO pin used here.
-    GPIOC->ODR &= ~(1<<14);
-    //this is to see the code working.
-    GPIOC->ODR &= ~(1<<9);
-}
+//
 
 /*
  useful things
@@ -97,68 +162,34 @@ void turnOffPump1(){
  ORANGE = 8
  GREEN = 9
  */
-
 int main(void)
 {
     HAL_Init(); // Reset of all peripherals, init the Flash and Systick
     SystemClock_Config(); //Configure the system clock
-  
     
-    RCC->AHBENR |= RCC_AHBENR_GPIOAEN; // clock set for GPIOA
-
+    
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN; // done to find the clock
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN; // Enables GPIOB
     
-    //sets everything to zero in the pins
-    // GPIOC is the GPIO_x where the pin is located.
-    
-    //sets all the values in modder to the correct pin into input mode.
-    // the value is 01 for output mode.
-    //               PC6        PC7       PC8       PC9
+    /*
+     GPIO setup section.
+     */
+    // The following are for LED mode.
+    //good for debug.
+    //output mode of 01   PC9(19:18) PC8(16:17)     PC7(15:14)   PC6(13:12)
     GPIOC->MODER |= (1<<12) | (1<<14) | (1<<16) | (1<<18);
-    
-    //enabling GPIO
-    //pin 14 which is at bits 28:29 01 gives output mode
-    //                PC14
-    GPIOC->MODER |= (1<< 28);
-   
-
-
-    // Initializing GPIO Pin: PA0
-    // Digital input mode using the MODER register
-    GPIOA->MODER &= ~((1 << 0) | (1 << 1));
-    
-    // Low speed using the OSPEEDR register
-    GPIOA->OSPEEDR &= ~(1 << 0);
-    
-    // Pull-down resistor using the PUPDR register
-    GPIOA->PUPDR &= ~(1 << 0);
-    GPIOA->PUPDR |= (1 << 1);
-
-
-
-    
-    // set debouncer
-   	uint32_t debouncer = 0;
- 
+    // GPIO B output enable section
+    //the following pins are used for pump contorl.
+    //output mode of 01   PB7(15:14)    PB6(13:12)    PB5(11:10)    PB4(9:8)
+    GPIOB->MODER |= (1<<14)|(1<<12)| (1<<10)| (1<<8);
     while(1) {
-     //DO STUFF HERE.
-      debouncer = (debouncer << 1); // Always shift every loop iteration
-		
-      if ((GPIOA->IDR & 0x01)) { // If input signal is set/high
-        debouncer |= 0x01; // Set lowest bit of bit-vector
-      }
-     
-      // This code triggers only once when transitioning to steady high
-      if (debouncer == 0x7FFFFFFF) {
-        if ((GPIOA->IDR & 0x01) && GPIOC->ODR == (1 << 14)) {
-          turnOffPump1();
-          HAL_Delay(100);
-        }
-        if ((GPIOA->IDR & 0x01) && GPIOC->ODR != (1 << 14)) {
-          turnOnPump1();
-          HAL_Delay(100);
-        }
-  
+     //now this is where one will run the code repeatedly
+            //turnOnPump1();
+            //HAL_Delay(100);
+            turnOffPump1();
+            HAL_Delay(1000);
+        turnOffPump2();
+        
      }
 
 }
