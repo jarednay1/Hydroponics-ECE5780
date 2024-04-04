@@ -20,8 +20,14 @@
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+uint32_t is_pump_on;
 
+/* USER CODE BEGIN Includes */
+void GPIO_init();
+void ADC_init();
+void Turn_On_Pump();
+void Turn_Off_Pump();
+void Check_Water_Level();
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,40 +68,131 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
   /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
+	
+	GPIO_init();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+	uint32_t debouncer = 0;
+	is_pump_on = 0;
+  while (1){
+		debouncer = (debouncer << 1); // Always shift every loop iteration
+		if (GPIOA->IDR & 1) {     // If input signal is set/high
+				debouncer |= 0x01;  // Set lowest bit of bit-vector
+    }
+		
+		if (debouncer == 0x7FFFFFFF) {
+			if (is_pump_on) {
+				Turn_Off_Pump();
+			}
+			else {
+				Turn_On_Pump();
+			}
+		}
+		
+		HAL_Delay(10);
+		
+		Check_Water_Level();
   }
   /* USER CODE END 3 */
+}
+
+// Helper to init GPIOs
+void GPIO_init() {
+	// Enable GPIOA, GPIOB, and GPIOC clocks
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN; 
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+	
+	// Initialize PA0 for button input
+	GPIOA->MODER &= ~(GPIO_MODER_MODER0_0 | GPIO_MODER_MODER0_1);               // Set PA0 to input
+	GPIOC->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEEDR0_0 | GPIO_OSPEEDR_OSPEEDR0_1);     // Set to low speed
+	GPIOC->PUPDR |= GPIO_PUPDR_PUPDR0_1;                                        // Set to pull-down
+	
+	// Set GPIOB and GPIOC to output mode
+	GPIOB->MODER |= (1<<14)|(1<<12)| (1<<10)| (1<<8);
+	GPIOC->MODER |= (1<<12) | (1<<14) | (1<<16) | (1<<18);
+}
+
+// A helper method to set up the ADC to pin PC0
+void ADC_init (void) {
+	// Set up ADC clock
+	RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
+	
+  // Set up the MODER register to Analog mode
+  GPIOC->MODER |= ((1 << 1) | (1 << 0));
+
+  // Set PUPDR register to no pull-up no pull-down
+  GPIOC->PUPDR &= ~((1 << 1) | (1 << 0));
+
+  // Set ADC configure register to 8-bit resolution, continuous conversion mode, and hardware
+	// triggers diabled.
+	ADC1->CFGR1 |= ((1 << 13) | (1 << 4));
+	ADC1->CFGR1 &= ~((1 << 11) | (1 << 10) | (1 << 3));
+	
+	// Set ADC channel selection register to ADC_IN10 ie PC0
+	ADC1->CHSELR |= (1 << 10);
+		
+	// Calibrate the ADC
+	ADC1->CR |= (1 << 31);
+	
+	// Wait for calibration to finish
+	while (ADC1->CR & ADC_CR_ADCAL)
+	{		
+	}
+	
+	// Enable the ADC
+	ADC1->CR |= (1 << 0);
+	
+	// Wait for the ADC ready flag
+	while (!(ADC1->ISR & ADC_ISR_ADRDY))
+	{
+	}		
+	
+	// Start the ADC
+	ADC1->CR |= (1 << 2);
+} 
+
+// Helper to turn on pump
+void Turn_On_Pump(){
+	//this is the GPIO pin used here.
+	GPIOB->ODR &= ~(1<<4);
+	
+	//this is to see the code working.
+	//GPIOC->ODR &= ~(1<<6);
+	
+	// Set pump value true.
+	is_pump_on = 1;
+}
+
+// Helper to turn off pump
+void Turn_Off_Pump(){
+	//this is the GPIO pin used.
+	GPIOB->ODR |= (1<<4);
+	
+	//this is to see the code working.
+	//GPIOC->ODR |= (1<<6);
+	
+	// Set pump value false;
+	is_pump_on = 0;
+}
+
+void Check_Water_Level() {
+	if (ADC1->DR > 1) {
+		GPIOC->ODR |= (1<<6);
+		GPIOC->ODR &= ~(1<<7);
+	}
+	
+	if (ADC1->DR < 1) {
+		GPIOC->ODR |= (1<<7);
+		GPIOC->ODR &= ~(1<<6);
+	}
 }
 
 /**
