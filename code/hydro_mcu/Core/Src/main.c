@@ -21,10 +21,22 @@
 
 /* Private includes ----------------------------------------------------------*/
 uint32_t is_pump_on;
+//sets up varibles for reading ADC.
+volatile uint32_t ADC_val1 = 0;
+volatile uint32_t ADC_val2 = 0;
 
 /* USER CODE BEGIN Includes */
 void GPIO_init();
 void ADC_init();
+void ADC1_init();
+void ADC2_init();
+void ADC_On();
+void readADC();
+void readADC2();
+void ADC_Off();
+void ADC2_On();
+void ADC2_Off();
+void read_ADC();
 void Turn_On_Pump();
 void Turn_Off_Pump();
 void Check_Water_Level();
@@ -74,125 +86,203 @@ int main(void)
 
   /* Configure the system clock */
   SystemClock_Config();
-	
-	GPIO_init();
+GPIO_init();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	uint32_t debouncer = 0;
-	is_pump_on = 0;
+uint32_t debouncer = 0;
+is_pump_on = 0;
+ADC2_init();
   while (1){
-		debouncer = (debouncer << 1); // Always shift every loop iteration
-		if (GPIOA->IDR & 1) {     // If input signal is set/high
-				debouncer |= 0x01;  // Set lowest bit of bit-vector
-    }
-		
-		if (debouncer == 0x7FFFFFFF) {
-			if (is_pump_on) {
-				Turn_Off_Pump();
-			}
-			else {
-				Turn_On_Pump();
-			}
-		}
-		
-		HAL_Delay(10);
-		
-		Check_Water_Level();
+      Check_Water_Level();
+        debouncer = (debouncer << 1); // Always shift every loop iteration
+        if (GPIOA->IDR & 1) {     // If input signal is set/high
+                debouncer |= 0x01;  // Set lowest bit of bit-vector
+        }
+        
+        if (debouncer == 0x7FFFFFFF) {
+            if (is_pump_on) {
+                Turn_Off_Pump();
+            }
+            else {
+                Turn_On_Pump();
+            }
+        }
+      readADC();
   }
   /* USER CODE END 3 */
 }
 
 // Helper to init GPIOs
 void GPIO_init() {
-	// Enable GPIOA, GPIOB, and GPIOC clocks
-	RCC->AHBENR |= RCC_AHBENR_GPIOAEN; 
-	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
-	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-	
-	// Initialize PA0 for button input
-	GPIOA->MODER &= ~(GPIO_MODER_MODER0_0 | GPIO_MODER_MODER0_1);               // Set PA0 to input
-	GPIOC->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEEDR0_0 | GPIO_OSPEEDR_OSPEEDR0_1);     // Set to low speed
-	GPIOC->PUPDR |= GPIO_PUPDR_PUPDR0_1;                                        // Set to pull-down
-	
-	// Set GPIOB and GPIOC to output mode
-	GPIOB->MODER |= (1<<14)|(1<<12)| (1<<10)| (1<<8);
-	GPIOC->MODER |= (1<<12) | (1<<14) | (1<<16) | (1<<18);
+    // Enable GPIOA, GPIOB, and GPIOC clocks
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+    
+    // Initialize PA0 for button input
+    GPIOA->MODER &= ~(GPIO_MODER_MODER0_0 | GPIO_MODER_MODER0_1);               // Set PA0 to input
+    GPIOC->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEEDR0_0 | GPIO_OSPEEDR_OSPEEDR0_1);     // Set to low speed
+    GPIOC->PUPDR |= GPIO_PUPDR_PUPDR0_1;                                        // Set to pull-down
+    
+    // Set GPIOB and GPIOC to output mode
+    GPIOB->MODER |= (1<<14)|(1<<12)| (1<<10)| (1<<8);
+    GPIOC->MODER |= (1<<12) | (1<<14) | (1<<16) | (1<<18);
+}
+/**
+ @function ADC2_init()_
+ @brief  enables ADC2
+ @discussion Although Clock is enabled in ADC_init_ this function was built as a stand alone so it could be activated regardless ADC_init call
+ */
+void ADC2_init (void){
+    // Enabling clock
+    RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
+    //Setting Mode to Analog mode
+    //this is PC1(3:2) to value 11 Analog mode
+    GPIOC->MODER |= (1<<3) | (1<<2);
+    // Setting PUDR to no pull-up/down
+    // this is for PC1(3:2) value of 00 in the reg.
+    GPIOC->PUPDR &= ~((1<<3)|(1<<2));
+    //ADC CFGR1 still used
+    // ADC Bit 13 (1 enables Continous), BIT (4:3) (sets resoultion)
+    ADC1->CFGR1 |= (1<<13) | (1<<4);
+    //bits 11:10 are the address
+    // the values should be 00 not to have Triggers.
+    ADC1->CFGR1 &= ~((1<<10) | (1<<11));
+    //Enabling ADC11 with bit 11 (1 value enables)
+    ADC1->CHSELR |= (1 << 11);
+    //Calibration of ADC
+    //set enable calibration
+    //this should be bit 31 of the CR1 regiester
+    ADC1->CR |= (1<<31);
+    //wait for the process to be complete
+    //this is at bit 0.
+    //GPIOC->ODR |= (1<<7);
+    while((ADC1->CR & (1<<31))){}
+    //enable ADC everything
+    //using bit 0 enable in the
+    //CR 1 is what sets it
+    ADC1->CR |= (1<<0);
+    while(!(ADC1->ISR & (1<<0))){}
+    //this starts the conversion
+    //this is in bit 2
+    // and this 1 enables it 0 disables
+    ADC1->CR |= (1<<2);
+    //getting the val from the ADC
+}
+//to init ADC1
+void ADC1_init(void){
+    // Enabling clock
+    RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
+    //Setting Mode to Analog mode
+    //this is PC0(1:0) to value 11 Analog mode
+    GPIOC->MODER &= ~((1<<3) | (1<<2));
+    GPIOC->MODER |= (1<<1) | (1<<0);
+    // Setting PUDR to no pull-up/down
+    // this is for PC0(3:2) value of 00 in the reg.
+    GPIOC->PUPDR &= ~((1<<1)|(1<<0));
+    //ADC CFGR1 still used
+    // ADC Bit 13 (1 enables Continous), BIT (4:3) (sets resoultion)
+    ADC1->CFGR1 |= (1<<13) | (1<<4);
+    //bits 11:10 are the address
+    // the values should be 00 not to have Triggers.
+    ADC1->CFGR1 &= ~((1<<10) | (1<<11));
+    //Enabling ADC10 with bit 10 (1 value enables)
+    ADC1->CHSELR |= (1 << 10);
+    //Calibration of ADC
+    //set enable calibration
+    //this should be bit 31 of the CR1 regiester
+    ADC1->CR |= (1<<31);
+    //wait for the process to be complete
+    //this is at bit 0.
+    while((ADC1->CR & (1<<31))){}
+    //enable ADC everything
+    //using bit 0 enable in the
+    //CR 1 is what sets it
+    ADC1->CR |= (1<<0);
+    while(!(ADC1->ISR & (1<<0))){}
+    //this starts the conversion
+    //this is in bit 2
+    // and this 1 enables it 0 disables
+    ADC1->CR |= (1<<2);
+    //getting the val from the ADC
+     
+     
+}
+//helper method to read ADC value for one
+void readADC(void){
+        ADC_val1  = ADC1->DR;
+}
+//helper method to read ADC2
+void readADC2(void){
+    if((ADC1->ISR & (1<<0)) == 1){
+        ADC_val2  = ADC1->DR;
+    }
 }
 
-// A helper method to set up the ADC to pin PC0
-void ADC_init (void) {
-	// Set up ADC clock
-	RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
-	
-  // Set up the MODER register to Analog mode
-  GPIOC->MODER |= ((1 << 1) | (1 << 0));
-
-  // Set PUPDR register to no pull-up no pull-down
-  GPIOC->PUPDR &= ~((1 << 1) | (1 << 0));
-
-  // Set ADC configure register to 8-bit resolution, continuous conversion mode, and hardware
-	// triggers diabled.
-	ADC1->CFGR1 |= ((1 << 13) | (1 << 4));
-	ADC1->CFGR1 &= ~((1 << 11) | (1 << 10) | (1 << 3));
-	
-	// Set ADC channel selection register to ADC_IN10 ie PC0
-	ADC1->CHSELR |= (1 << 10);
-		
-	// Calibrate the ADC
-	ADC1->CR |= (1 << 31);
-	
-	// Wait for calibration to finish
-	while (ADC1->CR & ADC_CR_ADCAL)
-	{		
-	}
-	
-	// Enable the ADC
-	ADC1->CR |= (1 << 0);
-	
-	// Wait for the ADC ready flag
-	while (!(ADC1->ISR & ADC_ISR_ADRDY))
-	{
-	}		
-	
-	// Start the ADC
-	ADC1->CR |= (1 << 2);
-} 
+/**
+ This function will DISABLE the ADC
+ @function
+ */
+void ADC_Off(void){
+    //disabling the ADC 10.
+    /*
+     How to do this step/
+     
+     */
+    ADC1->CHSELR &= ~(1 << 10);
+}
+void ADC_On(void){
+    //turning on ADC 10
+    ADC1->CHSELR |= (1 << 10);
+}
+void ADC2_Off(void){
+    //disabling ADC 11.
+    // this is done using C
+    ADC1->CHSELR &= ~(1<<11);
+}
+void ADC2_On(void){
+    //turning on ADC 11.
+    ADC1->CHSELR |= (1<<11);
+}
 
 // Helper to turn on pump
 void Turn_On_Pump(){
-	//this is the GPIO pin used here.
-	GPIOB->ODR &= ~(1<<4);
-	
-	//this is to see the code working.
-	//GPIOC->ODR &= ~(1<<6);
-	
-	// Set pump value true.
-	is_pump_on = 1;
+    //this is the GPIO pin used here.
+    GPIOB->ODR &= ~(1<<4);
+    
+    //this is to see the code working.
+    //GPIOC->ODR &= ~(1<<6);
+    
+    // Set pump value true.
+    is_pump_on = 1;
 }
 
 // Helper to turn off pump
 void Turn_Off_Pump(){
-	//this is the GPIO pin used.
-	GPIOB->ODR |= (1<<4);
-	
-	//this is to see the code working.
-	//GPIOC->ODR |= (1<<6);
-	
-	// Set pump value false;
-	is_pump_on = 0;
+    //this is the GPIO pin used.
+    GPIOB->ODR |= (1<<4);
+    
+    //this is to see the code working.
+    //GPIOC->ODR |= (1<<6);
+    
+    // Set pump value false;
+    is_pump_on = 0;
 }
 
 void Check_Water_Level() {
-	if (ADC1->DR > 1) {
-		GPIOC->ODR |= (1<<6);
-		GPIOC->ODR &= ~(1<<7);
-	}
-	
-	if (ADC1->DR < 1) {
-		GPIOC->ODR |= (1<<7);
-		GPIOC->ODR &= ~(1<<6);
-	}
+    //MODIFCATION HERE.
+    if (ADC_val1 > 35) {
+        //turns on red LED if detected.
+        GPIOC->ODR |= (1<<6);
+        GPIOC->ODR &= ~(1<<7);
+    }
+    
+    if (ADC_val1 < 30) {
+        //turns on blue LED if not detected.
+        GPIOC->ODR |= (1<<7);
+        GPIOC->ODR &= ~(1<<6);
+    }
 }
 
 /**
