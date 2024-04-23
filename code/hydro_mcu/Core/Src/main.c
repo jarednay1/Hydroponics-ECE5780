@@ -15,52 +15,23 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-/* Private includes ----------------------------------------------------------*/
-uint32_t is_pump_on;
+// Static Variables
+static uint32_t is_pump_on;
+static char timer_state;
 
-/* USER CODE BEGIN Includes */
+// Function Prototypes
+void SystemClock_Config(void);
+void Next_State();
 void GPIO_init();
+void LED_init();
+void Timer_init(uint16_t reload_val);
 void ADC_init();
 void Turn_On_Pump();
 void Turn_Off_Pump();
 void Check_Water_Level();
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
@@ -68,39 +39,84 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	// ----Begin Init----
   HAL_Init();
-
-  /* Configure the system clock */
   SystemClock_Config();
+	GPIO_init(); // USING PINS ---
+	ADC_init(); // USING PINS ---
 	
-	GPIO_init();
+	// Enable the interupt for Timer2
+	NVIC_EnableIRQ(TIM2_IRQn);
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
 	uint32_t debouncer = 0;
 	is_pump_on = 0;
+	timer_state = 0;
+	
+	// Begin inifite loop
   while (1){
+		
+		// Debouncer for toggling lighting state.
 		debouncer = (debouncer << 1); // Always shift every loop iteration
 		if (GPIOA->IDR & 1) {     // If input signal is set/high
 				debouncer |= 0x01;  // Set lowest bit of bit-vector
     }
 		
 		if (debouncer == 0x7FFFFFFF) {
+			Next_State();
+			/*
 			if (is_pump_on) {
 				Turn_Off_Pump();
 			}
 			else {
 				Turn_On_Pump();
 			}
+			*/
 		}
 		
-		HAL_Delay(10);
-		
-		Check_Water_Level();
   }
   /* USER CODE END 3 */
+}
+
+// Method that will handle state changes. Based on the value in timer_state. It will increment
+// state until they are cycled through coming back to state 0. State 0 is lights off, and state
+// 4 is lights always on. Will also turn on pump whenever lighthing is enabled. Pump will shut 
+// off when lighting is not enabled.
+void Next_State() {
+		switch (timer_state) {
+			// Case 0 everything is off
+			case 0:
+				Turn_On_Pump();
+				timer_state = 1;
+				GPIOC->ODR |= (1 << 9);
+				Timer_init(1000);
+				break;
+			// Case 1 light timer will toggle every 5 sec
+			case 1:
+				timer_state = 2;
+				GPIOC->ODR |= (1 << 9);
+				Timer_init(2000);
+				break;
+			// Case 2 light timer will toggle every 10 sec
+			case 2:
+				timer_state = 3;
+				GPIOC->ODR |= (1 << 9);
+				Timer_init(3000);
+				break;
+			// Case 3 light timer will toggle every 15 sec
+			case 3:
+				// This will be different. Timer needs to be disabled and LED turned on.
+				timer_state = 4;
+				TIM2->CR1 &= ~(1 << 0);
+				GPIOC->ODR |= (1 << 9);
+				break;
+			// Case 4 lights will stay on
+			case 4:
+				// Only difference will be that LED turns off.
+				Turn_Off_Pump();
+				timer_state = 0;
+				GPIOC->ODR &= ~(1 << 9);
+				break;
+		}
 }
 
 // Helper to init GPIOs
@@ -120,44 +136,84 @@ void GPIO_init() {
 	GPIOC->MODER |= (1<<12) | (1<<14) | (1<<16) | (1<<18);
 }
 
-// A helper method to set up the ADC to pin PC0
-void ADC_init (void) {
-	// Set up ADC clock
-	RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
+// Helper for LED initialization
+void LED_init() {
+	// First enable clock for GPIOC
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 	
-  // Set up the MODER register to Analog mode
-  GPIOC->MODER |= ((1 << 1) | (1 << 0));
-
-  // Set PUPDR register to no pull-up no pull-down
-  GPIOC->PUPDR &= ~((1 << 1) | (1 << 0));
-
-  // Set ADC configure register to 8-bit resolution, continuous conversion mode, and hardware
-	// triggers diabled.
-	ADC1->CFGR1 |= ((1 << 13) | (1 << 4));
-	ADC1->CFGR1 &= ~((1 << 11) | (1 << 10) | (1 << 3));
+	// Set up MODER registers to general purpose output for PC6, PC7,
+	// PC8, and PC9, the LEDs
+	GPIOC->MODER |= ((1 << 18) | (1 << 16) | (1 << 14) | (1 << 12));
+	GPIOC->MODER &= ~((1 << 19) | (1 << 17) | (1 << 15) | (1 << 13));
 	
-	// Set ADC channel selection register to ADC_IN10 ie PC0
-	ADC1->CHSELR |= (1 << 10);
+	// Set up OTYPER registers to be in push-pull mode
+	GPIOC->OTYPER &= ~((1 << 9) | (1 << 8) | (1 << 7) | (1 << 6));
+	
+	// Set up OSPEEDR registers to low speed mode
+	GPIOC->OSPEEDR &= ~((1 << 18) | (1 << 16) | (1 << 14) | (1 << 12));
+	
+	// Set up PUPDR registers to no pull up / no pull down resistors
+	GPIOC->PUPDR &= ~((1 << 19) | (1 << 18) | (1 << 17) | (1 << 16));
+	GPIOC->PUPDR &= ~((1 << 15) | (1 << 14) | (1 << 13) | (1 << 12));
+}
+
+// Heleper for Timer2 init
+void Timer_init(uint16_t reload_val) {
+	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+	
+	// Enable PSC register to 39,999 which will give us 5ms ticks
+	TIM2->PSC = 39999;
+	
+	// Values for this code are 1k = 5 sec, 2k = 10 sec, 3k = 15 sec.
+	TIM2->ARR = reload_val;
+	
+	// Enable DIER register to UIE(Update interrupt enable)
+	TIM2->DIER |= 1;
+	
+	// Enable the CNT or configuration register of the timer
+	TIM2->CR1 &= ~((1 << 9) | (1 << 8) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3) | (1	<< 1));
+	TIM2->CR1 |= ((1 << 7) | (1 << 2) | (1 << 0));
+	
+	// Enable timer2 in the NVIC
+	//NVIC_EnableIRQ(TIM2_IRQn);
+}
+
+// A helper method to set up the ADC to pin PC1
+void ADC_init (){
+    // Enabling clock
+    RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
+	
+    //Setting Mode to Analog mode this is PC1(3:2) to value 11 Analog mode
+		GPIOC->MODER |= (1<<3) | (1<<2);
+	
+    // Setting PUDR to no pull-up/down this is for PC1(3:2) value of 00 in the reg.
+    GPIOC->PUPDR &= ~((1<<3)|(1<<2));
+	
+    //ADC CFGR1 still used ADC Bit 13 (1 enables Continous), BIT (4:3) (sets resoultion)
+    ADC1->CFGR1 |= (1<<13) | (1<<4);
+	
+    //bits 11:10 are the address the values should be 00 not to have Triggers.
+    ADC1->CFGR1 &= ~((1<<10) | (1<<11));
+	
+    //Enabling ADC11 with bit 11 (1 value enables)
+    ADC1->CHSELR |= (1 << 11);
+	
+    //Start ADC calibration this should be bit 31 of the CR1 regiester
+    ADC1->CR |= (1<<31);
 		
-	// Calibrate the ADC
-	ADC1->CR |= (1 << 31);
-	
-	// Wait for calibration to finish
-	while (ADC1->CR & ADC_CR_ADCAL)
-	{		
-	}
-	
-	// Enable the ADC
-	ADC1->CR |= (1 << 0);
-	
-	// Wait for the ADC ready flag
-	while (!(ADC1->ISR & ADC_ISR_ADRDY))
-	{
-	}		
-	
-	// Start the ADC
-	ADC1->CR |= (1 << 2);
-} 
+    //Wait for calibration
+    while((ADC1->CR & (1<<31))){}
+			
+    //Enable ADC everything using bit 0 enable in the CR 1 is what sets it
+    ADC1->CR |= (1<<0);
+			
+    while(!(ADC1->ISR & (1<<0))){}
+    //this starts the conversion
+    //this is in bit 2
+    // and this 1 enables it 0 disables
+    ADC1->CR |= (1<<2);
+    //getting the val from the ADC
+}
 
 // Helper to turn on pump
 void Turn_On_Pump(){
