@@ -24,6 +24,7 @@
 // Push Button -> PA0
 // Pump -> PB4
 // Lighting -> PB5
+// USART -> TX - PC4, RX - PC5
 // LEDS -> PC9, PC8, PC7, PC6
 // Unused but enabled -> PB6, PB7
 //-------------------------------------
@@ -33,6 +34,7 @@
 // Static Variables
 static char is_pump_on;
 static char timer_state;
+const char ADC_threshold = 35;
 
 // Function Prototypes
 void SystemClock_Config(void);
@@ -44,6 +46,7 @@ void LED_init();
 void USART_init();
 void Timer_init(uint16_t reload_val);
 void ADC_init();
+uint16_t Read_ADC();
 void Turn_On_Pump();
 void Turn_Off_Pump();
 void Check_Water_Level();
@@ -56,8 +59,9 @@ int main(void) {
 	// ----Begin Init----
   HAL_Init();
   SystemClock_Config();
-	GPIO_init(); // USING PINS ---
-	ADC_init(); // USING PINS ---
+	GPIO_init(); 
+	ADC_init();
+	USART_init();
 	
 	// Enable the interupt for Timer2
 	NVIC_EnableIRQ(TIM2_IRQn);
@@ -69,8 +73,7 @@ int main(void) {
 	
 	// Begin inifite loop
   while (1){
-		
-		//GPIOB->ODR |= (1 << 5);   
+		//HAL_Delay(1000);  
 		// Debouncer for toggling lighting state.
 		debouncer = (debouncer << 1); // Always shift every loop iteration
 		if (GPIOA->IDR & 1) {     // If input signal is set/high
@@ -79,14 +82,18 @@ int main(void) {
 		
 		if (debouncer == 0x7FFFFFFF) {
 			Next_State();
-			/*
-			if (is_pump_on) {
-				Turn_Off_Pump();
-			}
-			else {
-				Turn_On_Pump();
-			}
-			*/
+		}
+		
+		
+		char ADC_val = Read_ADC();
+		
+		if (ADC_val > ADC_threshold) {
+			GPIOC->ODR |= (1 << 9);
+			GPIOC->ODR &= ~(1 << 6);
+		}
+		else {
+			GPIOC->ODR &= ~(1 << 9);
+			GPIOC->ODR |= (1 << 6);		
 		}
 		
   }
@@ -103,33 +110,21 @@ void Next_State() {
 			case 0:
 				Turn_On_Pump();
 				timer_state = 1;
-				Timer_init(1000);
+				Timer_init(600);
 				break;
 			// Case 1 light timer will toggle every 5 sec
 			case 1:
 				timer_state = 2;
 				GPIOB->ODR |= (1 << 5);
-				//TIM2->ARR = 0;
-				//TIM2->CR1 &= ~TIM_CR1_UDIS;
-				//TIM2->EGR = TIM_EGR_UG;
-				//TIM1->CR1 |= TIM_CR1_UDIS;
-			
-				TIM2->ARR = 0;
-				TIM2->CR1 |= TIM_CR1_UDIS;
-
 				TIM2->EGR = TIM_EGR_UG;
-				TIM2->CR1 &= ~TIM_CR1_UDIS;
-			TIM2->CR1 |= TIM_CR1_URS;
-			
-			
-			
-				Timer_init(2000);
+				Timer_init(1000);
 				break;
 			// Case 2 light timer will toggle every 10 sec
 			case 2:
 				timer_state = 3;
 				GPIOB->ODR |= (1 << 5);
-				Timer_init(3000);
+				TIM2->EGR = TIM_EGR_UG;
+				Timer_init(1400);
 				break;
 			// Case 3 light timer will toggle every 15 sec
 			case 3:
@@ -143,6 +138,7 @@ void Next_State() {
 				// Only difference will be that LED turns off.
 				Turn_Off_Pump();
 				timer_state = 0;
+				TIM2->EGR = TIM_EGR_UG;
 				GPIOB->ODR &= ~(1 << 5);
 				break;
 		}
@@ -258,8 +254,8 @@ void Timer_init(uint16_t reload_val) {
 	TIM2->DIER |= 1;
 	
 	// Enable the CNT or configuration register of the timer
-	TIM2->CR1 &= ~((1 << 9) | (1 << 8) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3) | (1	<< 1));
-	TIM2->CR1 |= ((1 << 7) | (1 << 2) | (1 << 0));
+	TIM2->CR1 &= ~((1 << 9) | (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3) | (1	<< 1));
+	TIM2->CR1 |= ((1 << 2) | (1 << 0));
 }
 
 // A helper method to set up the ADC to pin PC1
@@ -298,6 +294,12 @@ void ADC_init (){
     ADC1->CR |= (1<<2);
     //getting the val from the ADC
 }
+
+// Heleper function to make code more readable
+uint16_t Read_ADC() {
+	return ADC1->DR;
+}
+
 
 // Helper to turn on pump
 void Turn_On_Pump(){
