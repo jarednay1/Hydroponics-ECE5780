@@ -37,8 +37,11 @@ static char timer_state;
 // Function Prototypes
 void SystemClock_Config(void);
 void Next_State();
+void Transmit_String(char* input);
+void Transmit_Char(char input);
 void GPIO_init();
 void LED_init();
+void USART_init();
 void Timer_init(uint16_t reload_val);
 void ADC_init();
 void Turn_On_Pump();
@@ -62,6 +65,7 @@ int main(void) {
 	uint32_t debouncer = 0;
 	is_pump_on = 0;
 	timer_state = 0;
+	Turn_Off_Pump();
 	
 	// Begin inifite loop
   while (1){
@@ -99,13 +103,26 @@ void Next_State() {
 			case 0:
 				Turn_On_Pump();
 				timer_state = 1;
-				//GPIOB->ODR |= (1 << 5);
 				Timer_init(1000);
 				break;
 			// Case 1 light timer will toggle every 5 sec
 			case 1:
 				timer_state = 2;
 				GPIOB->ODR |= (1 << 5);
+				//TIM2->ARR = 0;
+				//TIM2->CR1 &= ~TIM_CR1_UDIS;
+				//TIM2->EGR = TIM_EGR_UG;
+				//TIM1->CR1 |= TIM_CR1_UDIS;
+			
+				TIM2->ARR = 0;
+				TIM2->CR1 |= TIM_CR1_UDIS;
+
+				TIM2->EGR = TIM_EGR_UG;
+				TIM2->CR1 &= ~TIM_CR1_UDIS;
+			TIM2->CR1 |= TIM_CR1_URS;
+			
+			
+			
 				Timer_init(2000);
 				break;
 			// Case 2 light timer will toggle every 10 sec
@@ -129,6 +146,29 @@ void Next_State() {
 				GPIOB->ODR &= ~(1 << 5);
 				break;
 		}
+}
+
+// Helper function for transmitting one character through USART
+void Transmit_Char(char input) {
+	// An empty while loop that breaks through when the status register
+	// says the transmit data register is empty.
+	while(!(USART3->ISR & (1 << 7))) {
+			
+	}
+	
+	// Write the input to the transfer data register
+	USART3->TDR = input;
+}
+
+// Helper function to transmit a string through USART
+void Transmit_String(char* input) {
+	int counter = 0;
+	
+	// Loop through and transmit the string.
+	while(*(input + counter) != 0) {
+		Transmit_Char(*(input + counter));
+		counter = counter + 1;
+	}
 }
 
 // Helper to init GPIOs
@@ -169,15 +209,50 @@ void LED_init() {
 	GPIOC->PUPDR &= ~((1 << 15) | (1 << 14) | (1 << 13) | (1 << 12));
 }
 
+// Helper for USART initilization PC4 = TX and PC5 = RX
+void USART_init(void) {
+	// First enable clock for GPIOC
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+	
+	// Set both PC4 and PC5 to Alternate Function Mode 
+	GPIOC->MODER |= ((1 << 11) | (1 << 9));
+	GPIOC->MODER &= ~((1 << 10) | (1 << 8));
+	
+	// Select the AF1 alternate function for PC4 and PC5
+	GPIOC->AFR[0] |= ((1 << 20) | (1 << 16));
+	
+	// Enable clock for USART3
+	RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
+	
+	// Set the baud rate to 115200 bits / second. Clock is 8Mhz.
+	USART3->BRR = 8000000 / 115200;
+	
+	// Enable Transmitter and Reciever hardware
+	USART3->CR1 |= ((1 << 3) | (1 << 2));
+	
+	// Enable the USART
+	USART3->CR1 |= (1 << 0);
+	
+	// Enable interupts
+	USART3->CR1 |= (1 << 5);
+	
+	// Enable USART interupt in the NVIC
+	NVIC_EnableIRQ(USART3_4_IRQn);
+}
+
 // Heleper for Timer2 init
 void Timer_init(uint16_t reload_val) {
 	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+	
+	// Set the count back to 0.
+	TIM2->CNT = 0;
 	
 	// Enable PSC register to 39,999 which will give us 5ms ticks
 	TIM2->PSC = 39999;
 	
 	// Values for this code are 1k = 5 sec, 2k = 10 sec, 3k = 15 sec.
 	TIM2->ARR = reload_val;
+	
 	
 	// Enable DIER register to UIE(Update interrupt enable)
 	TIM2->DIER |= 1;
@@ -239,7 +314,7 @@ void Turn_On_Pump(){
 // Helper to turn off pump
 void Turn_Off_Pump(){
 	//this is the GPIO pin used.
-	GPIOB->ODR |= (1<<4);
+	GPIOB->ODR |=(1<<4);
 	
 	//this is to see the code working.
 	//GPIOC->ODR |= (1<<6);
