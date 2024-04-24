@@ -32,7 +32,7 @@
 
 // Static Variables
 static char is_pump_on;
-static char timer_state;
+static char timer_state = 0;
 
 // Function Prototypes
 void SystemClock_Config(void);
@@ -48,6 +48,7 @@ void Turn_On_Pump();
 void Turn_Off_Pump();
 void Check_Water_Level();
 
+
 /**
   * @brief  The application entry point.
   * @retval int
@@ -58,6 +59,7 @@ int main(void) {
   SystemClock_Config();
 	GPIO_init(); // USING PINS ---
 	ADC_init(); // USING PINS ---
+	USART_init(); 
 	
 	// Enable the interupt for Timer2
 	NVIC_EnableIRQ(TIM2_IRQn);
@@ -69,26 +71,30 @@ int main(void) {
 	
 	// Begin inifite loop
   while (1){
-		
-		//GPIOB->ODR |= (1 << 5);   
+		Transmit_Char('a');
+		HAL_Delay(200);
+		// GPIOB->ODR |= (1 << 5);   
 		// Debouncer for toggling lighting state.
+		/*
 		debouncer = (debouncer << 1); // Always shift every loop iteration
 		if (GPIOA->IDR & 1) {     // If input signal is set/high
 				debouncer |= 0x01;  // Set lowest bit of bit-vector
     }
 		
 		if (debouncer == 0x7FFFFFFF) {
+			
 			Next_State();
-			/*
+			
 			if (is_pump_on) {
 				Turn_Off_Pump();
 			}
 			else {
 				Turn_On_Pump();
 			}
-			*/
-		}
+			
+		} */
 		
+		//Transmit_Char('b');
   }
   /* USER CODE END 3 */
 }
@@ -97,16 +103,18 @@ int main(void) {
 // state until they are cycled through coming back to state 0. State 0 is lights off, and state
 // 4 is lights always on. Will also turn on pump whenever lighting is enabled. Pump will shut 
 // off when lighting is not enabled.
-void Next_State() {
+void Next_State() { 
 		switch (timer_state) {
 			// Case 0 everything is off
 			case 0:
+				Transmit_Char('0');
 				Turn_On_Pump();
 				timer_state = 1;
 				Timer_init(1000);
 				break;
 			// Case 1 light timer will toggle every 5 sec
 			case 1:
+				Transmit_Char('1');
 				timer_state = 2;
 				GPIOB->ODR |= (1 << 5);
 				//TIM2->ARR = 0;
@@ -119,14 +127,14 @@ void Next_State() {
 
 				TIM2->EGR = TIM_EGR_UG;
 				TIM2->CR1 &= ~TIM_CR1_UDIS;
-			TIM2->CR1 |= TIM_CR1_URS;
-			
+				TIM2->CR1 |= TIM_CR1_URS;
 			
 			
 				Timer_init(2000);
 				break;
 			// Case 2 light timer will toggle every 10 sec
 			case 2:
+				Transmit_Char('2');
 				timer_state = 3;
 				GPIOB->ODR |= (1 << 5);
 				Timer_init(3000);
@@ -134,6 +142,7 @@ void Next_State() {
 			// Case 3 light timer will toggle every 15 sec
 			case 3:
 				// This will be different. Timer needs to be disabled and LED turned on.
+				Transmit_Char('3');
 				timer_state = 4;
 				TIM2->CR1 &= ~(1 << 0);
 				GPIOB->ODR |= (1 << 5);
@@ -141,6 +150,7 @@ void Next_State() {
 			// Case 4 lights will stay on
 			case 4:
 				// Only difference will be that LED turns off.
+				Transmit_Char('4');
 				Turn_Off_Pump();
 				timer_state = 0;
 				GPIOB->ODR &= ~(1 << 5);
@@ -153,12 +163,13 @@ void Transmit_Char(char input) {
 	// An empty while loop that breaks through when the status register
 	// says the transmit data register is empty.
 	while(!(USART3->ISR & (1 << 7))) {
-			
+		
 	}
 	
 	// Write the input to the transfer data register
 	USART3->TDR = input;
 }
+
 
 // Helper function to transmit a string through USART
 void Transmit_String(char* input) {
@@ -211,33 +222,38 @@ void LED_init() {
 
 // Helper for USART initilization PC4 = TX and PC5 = RX
 void USART_init(void) {
+	// Enable clock for USART3
+	RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
+	
 	// First enable clock for GPIOC
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+	
+	// Set the baud rate to 115200 bits / second. Clock is 8Mhz.
+	USART3->BRR = 8000000 / 115200;
 	
 	// Set both PC4 and PC5 to Alternate Function Mode 
 	GPIOC->MODER |= ((1 << 11) | (1 << 9));
 	GPIOC->MODER &= ~((1 << 10) | (1 << 8));
 	
 	// Select the AF1 alternate function for PC4 and PC5
-	GPIOC->AFR[0] |= ((1 << 20) | (1 << 16));
-	
-	// Enable clock for USART3
-	RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
-	
-	// Set the baud rate to 115200 bits / second. Clock is 8Mhz.
-	USART3->BRR = 8000000 / 115200;
+	GPIOC->AFR[0] &= ~((1 << 17) | (1 << 18) | (1 << 19) | (1 << 21) | (1 << 22) | (1 << 23));
+	GPIOC->AFR[0] |= ((1 << 16) | (1 << 20));
 	
 	// Enable Transmitter and Reciever hardware
 	USART3->CR1 |= ((1 << 3) | (1 << 2));
 	
-	// Enable the USART
-	USART3->CR1 |= (1 << 0);
-	
 	// Enable interupts
 	USART3->CR1 |= (1 << 5);
 	
+	// Enable the USART
+	USART3->CR1 |= (1 << 0);
+	
+	// Disable clock
+	USART3->CR2 &= ~(1 << 11);
+	
 	// Enable USART interupt in the NVIC
 	NVIC_EnableIRQ(USART3_4_IRQn);
+	NVIC_SetPriority(USART3_4_IRQn, 0);
 }
 
 // Heleper for Timer2 init
