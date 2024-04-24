@@ -18,8 +18,20 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+//-------------------------------------
+//---------Current Pins Used-----------
+// ADC -> PC1
+// Push Button -> PA0
+// Pump -> PB4
+// Lighting -> PB5
+// LEDS -> PC9, PC8, PC7, PC6
+// Unused but enabled -> PB6, PB7
+//-------------------------------------
+//-------------------------------------
+
+
 // Static Variables
-static uint32_t is_pump_on;
+static char is_pump_on;
 static char timer_state;
 
 // Function Prototypes
@@ -37,8 +49,7 @@ void Check_Water_Level();
   * @brief  The application entry point.
   * @retval int
   */
-int main(void)
-{
+int main(void) {
 	// ----Begin Init----
   HAL_Init();
   SystemClock_Config();
@@ -55,6 +66,7 @@ int main(void)
 	// Begin inifite loop
   while (1){
 		
+		//GPIOB->ODR |= (1 << 5);   
 		// Debouncer for toggling lighting state.
 		debouncer = (debouncer << 1); // Always shift every loop iteration
 		if (GPIOA->IDR & 1) {     // If input signal is set/high
@@ -79,7 +91,7 @@ int main(void)
 
 // Method that will handle state changes. Based on the value in timer_state. It will increment
 // state until they are cycled through coming back to state 0. State 0 is lights off, and state
-// 4 is lights always on. Will also turn on pump whenever lighthing is enabled. Pump will shut 
+// 4 is lights always on. Will also turn on pump whenever lighting is enabled. Pump will shut 
 // off when lighting is not enabled.
 void Next_State() {
 		switch (timer_state) {
@@ -87,19 +99,19 @@ void Next_State() {
 			case 0:
 				Turn_On_Pump();
 				timer_state = 1;
-				GPIOC->ODR |= (1 << 9);
+				//GPIOB->ODR |= (1 << 5);
 				Timer_init(1000);
 				break;
 			// Case 1 light timer will toggle every 5 sec
 			case 1:
 				timer_state = 2;
-				GPIOC->ODR |= (1 << 9);
+				GPIOB->ODR |= (1 << 5);
 				Timer_init(2000);
 				break;
 			// Case 2 light timer will toggle every 10 sec
 			case 2:
 				timer_state = 3;
-				GPIOC->ODR |= (1 << 9);
+				GPIOB->ODR |= (1 << 5);
 				Timer_init(3000);
 				break;
 			// Case 3 light timer will toggle every 15 sec
@@ -107,14 +119,14 @@ void Next_State() {
 				// This will be different. Timer needs to be disabled and LED turned on.
 				timer_state = 4;
 				TIM2->CR1 &= ~(1 << 0);
-				GPIOC->ODR |= (1 << 9);
+				GPIOB->ODR |= (1 << 5);
 				break;
 			// Case 4 lights will stay on
 			case 4:
 				// Only difference will be that LED turns off.
 				Turn_Off_Pump();
 				timer_state = 0;
-				GPIOC->ODR &= ~(1 << 9);
+				GPIOB->ODR &= ~(1 << 5);
 				break;
 		}
 }
@@ -173,9 +185,6 @@ void Timer_init(uint16_t reload_val) {
 	// Enable the CNT or configuration register of the timer
 	TIM2->CR1 &= ~((1 << 9) | (1 << 8) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3) | (1	<< 1));
 	TIM2->CR1 |= ((1 << 7) | (1 << 2) | (1 << 0));
-	
-	// Enable timer2 in the NVIC
-	//NVIC_EnableIRQ(TIM2_IRQn);
 }
 
 // A helper method to set up the ADC to pin PC1
@@ -239,6 +248,7 @@ void Turn_Off_Pump(){
 	is_pump_on = 0;
 }
 
+// TODO: Needs much work and is not correct
 void Check_Water_Level() {
 	if (ADC1->DR > 1) {
 		GPIOC->ODR |= (1<<6);

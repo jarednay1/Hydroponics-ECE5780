@@ -143,7 +143,7 @@ void SysTick_Handler(void)
 /* USER CODE BEGIN 1 */
 void TIM2_IRQHandler(void) {
 	// Toggle green led
-	GPIOC->ODR ^= (1 << 9);
+	GPIOB->ODR ^= (1 << 5);
 	
 	// Clear the interupt in the SR register
 	TIM2->SR &= ~(1 << 0);
