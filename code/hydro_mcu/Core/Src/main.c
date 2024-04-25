@@ -70,6 +70,7 @@ int main(void) {
 	is_pump_on = 0;
 	timer_state = 0;
 	Turn_Off_Pump();
+	Transmit_Char('0');
 	
 	// Begin inifite loop
   while (1){
@@ -110,21 +111,24 @@ void Next_State() {
 			case 0:
 				Turn_On_Pump();
 				timer_state = 1;
-				Timer_init(600);
+				Transmit_Char('1');
+				Timer_init(1000);
 				break;
 			// Case 1 light timer will toggle every 5 sec
 			case 1:
 				timer_state = 2;
 				GPIOB->ODR |= (1 << 5);
 				TIM2->EGR = TIM_EGR_UG;
-				Timer_init(1000);
+				Transmit_Char('2');
+				Timer_init(2000);
 				break;
 			// Case 2 light timer will toggle every 10 sec
 			case 2:
 				timer_state = 3;
 				GPIOB->ODR |= (1 << 5);
 				TIM2->EGR = TIM_EGR_UG;
-				Timer_init(1400);
+				Transmit_Char('3');
+				Timer_init(3000);
 				break;
 			// Case 3 light timer will toggle every 15 sec
 			case 3:
@@ -132,6 +136,7 @@ void Next_State() {
 				timer_state = 4;
 				TIM2->CR1 &= ~(1 << 0);
 				GPIOB->ODR |= (1 << 5);
+				Transmit_Char('4');
 				break;
 			// Case 4 lights will stay on
 			case 4:
@@ -140,6 +145,7 @@ void Next_State() {
 				timer_state = 0;
 				TIM2->EGR = TIM_EGR_UG;
 				GPIOB->ODR &= ~(1 << 5);
+				Transmit_Char('0');
 				break;
 		}
 }
