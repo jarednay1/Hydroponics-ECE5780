@@ -15,15 +15,26 @@ The following is the pinout for the STM32:
 
 //-------------------------------------
 //---------Current Pins Used-----------
+</br>
 // ADC -> PC1
+</br>
 // Push Button -> PA0
+</br>
 // Pump -> PB4
+</br>
 // Lighting -> PB5
+</br>
 // USART -> TX - PC4, RX - PC5
+</br>
 // LEDS -> PC9, PC8, PC7, PC6
+</br>
 // Unused but enabled -> PB6, PB7
+</br>
 //-------------------------------------
+</br>
+
 //-------------------------------------
+</br>
 
 To begin setup build voltage regulator circuit in documentation. Use any type of water tight containers for plant setup and water reservoir. Setup pump to voltage regulator circuit and relay as in documentation. Set the pump in the reservoir and hose to the drip tray. Lighting circuit will consist of LED an 1k resistor in series. The USART will connect to pins 0 (TX) and 1 (RX) and pin 16 and 17 for display on the Raspberry Pi. Once all connected fire up and have fun growing!
   </p>
