@@ -9,7 +9,7 @@
     <li><b>uart_display</b> which contains the UART display code</li>
   </ol>
   </br>
-#### Group Members
+#### Contributors 
 <!--
 Name - UID
 -->
