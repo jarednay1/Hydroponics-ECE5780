@@ -7,6 +7,7 @@ from machine import UART, Pin
 #link to lib used. 
 #https://pypi.org/project/raspberrypi-tm1637/
 #credit due to
+#Patrick Palma who wrote the 1637 driver. 
 import tm1637
 import time
 #pins (0 TX) (1 RX)
