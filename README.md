@@ -9,6 +9,24 @@
     <li><b>uart_display</b> which contains the UART display code</li>
   </ol>
   </br>
+  <p>
+    This project uses an STM32F072RBT6 and a Raspberry Pi Pico.
+The following is the pinout for the STM32:
+
+//-------------------------------------
+//---------Current Pins Used-----------
+// ADC -> PC1
+// Push Button -> PA0
+// Pump -> PB4
+// Lighting -> PB5
+// USART -> TX - PC4, RX - PC5
+// LEDS -> PC9, PC8, PC7, PC6
+// Unused but enabled -> PB6, PB7
+//-------------------------------------
+//-------------------------------------
+
+To begin setup build voltage regulator circuit in documentation. Use any type of water tight containers for plant setup and water reservoir. Setup pump to voltage regulator circuit and relay as in documentation. Set the pump in the reservoir and hose to the drip tray. Lighting circuit will consist of LED an 1k resistor in series. The USART will connect to pins 0 (TX) and 1 (RX) and pin 16 and 17 for display on the Raspberry Pi. Once all connected fire up and have fun growing!
+  </p>
 #### Contributors 
 <!--
 Name - UID
